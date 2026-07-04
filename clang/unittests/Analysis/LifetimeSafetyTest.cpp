@@ -12,6 +12,7 @@
 #include "clang/Analysis/Analyses/LifetimeSafety/Loans.h"
 #include "clang/Testing/TestAST.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/Support/raw_ostream.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <optional>
@@ -136,11 +137,16 @@ public:
   }
 
   bool isLoanToATemporary(LoanID LID) {
-    return Analysis.getFactManager()
-               .getLoanMgr()
-               .getLoan(LID)
-               ->getAccessPath()
-               .getAsMaterializeTemporaryExpr() != nullptr;
+    const Loan *L = Analysis.getFactManager().getLoanMgr().getLoan(LID);
+    return L->getAccessPath().getAsMaterializeTemporaryExpr() != nullptr;
+  }
+
+  std::string getAccessPathString(LoanID LID) {
+    const Loan *L = Analysis.getFactManager().getLoanMgr().getLoan(LID);
+    std::string S;
+    llvm::raw_string_ostream OS(S);
+    L->getAccessPath().dump(OS);
+    return S;
   }
 
   // Gets the set of loans that are live at the given program point. A loan is
@@ -283,11 +289,11 @@ public:
 ///
 /// This matcher is intended to be used with an \c OriginInfo object.
 ///
-/// \param LoanVars A vector of strings, where each string is the name of a
-/// variable expected to be the source of a loan.
+/// \param LoanPathStrs A vector of strings, where each string is the
+/// string representation of an access path of a loan.
 /// \param Annotation A string identifying the program point (created with
 /// POINT()) where the check should be performed.
-MATCHER_P2(HasLoansToImpl, LoanVars, Annotation, "") {
+MATCHER_P2(HasLoansToImpl, LoanPathStrs, Annotation, "") {
   const OriginInfo &Info = arg;
   std::optional<OriginID> OIDOpt = Info.Helper.getOriginForDecl(Info.OriginVar);
   if (!OIDOpt) {
@@ -303,36 +309,12 @@ MATCHER_P2(HasLoansToImpl, LoanVars, Annotation, "") {
                      << Annotation << "'";
     return false;
   }
-  std::vector<LoanID> ActualLoans(ActualLoansSetOpt->begin(),
-                                  ActualLoansSetOpt->end());
+  std::vector<std::string> ActualLoanPaths;
+  for (LoanID LID : *ActualLoansSetOpt)
+    ActualLoanPaths.push_back(Info.Helper.getAccessPathString(LID));
 
-  std::vector<LoanID> ExpectedLoans;
-  for (const auto &LoanVar : LoanVars) {
-    std::vector<LoanID> ExpectedLIDs = Info.Helper.getLoansForVar(LoanVar);
-    if (ExpectedLIDs.empty()) {
-      *result_listener << "could not find loan for var '" << LoanVar << "'";
-      return false;
-    }
-    ExpectedLoans.insert(ExpectedLoans.end(), ExpectedLIDs.begin(),
-                         ExpectedLIDs.end());
-  }
-  std::sort(ExpectedLoans.begin(), ExpectedLoans.end());
-  std::sort(ActualLoans.begin(), ActualLoans.end());
-  if (ExpectedLoans != ActualLoans) {
-    *result_listener << "Expected: {";
-    for (const auto &LoanID : ExpectedLoans) {
-      *result_listener << LoanID.Value << ", ";
-    }
-    *result_listener << "} Actual: {";
-    for (const auto &LoanID : ActualLoans) {
-      *result_listener << LoanID.Value << ", ";
-    }
-    *result_listener << "}";
-    return false;
-  }
-
-  return ExplainMatchResult(UnorderedElementsAreArray(ExpectedLoans),
-                            ActualLoans, result_listener);
+  return ExplainMatchResult(UnorderedElementsAreArray(LoanPathStrs),
+                            ActualLoanPaths, result_listener);
 }
 
 enum class LivenessKindFilter { Maybe, Must, All };
@@ -797,7 +779,7 @@ TEST_F(LifetimeAnalysisTest, GslPointerSimpleLoan) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("x"), HasLoansTo({"a"}, "p1"));
+  EXPECT_THAT(Origin("x"), HasLoansTo({"a.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, GslPointerConstructFromOwner) {
@@ -813,12 +795,12 @@ TEST_F(LifetimeAnalysisTest, GslPointerConstructFromOwner) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("a"), HasLoansTo({"al"}, "p1"));
-  EXPECT_THAT(Origin("b"), HasLoansTo({"bl"}, "p1"));
-  EXPECT_THAT(Origin("c"), HasLoansTo({"cl"}, "p1"));
-  EXPECT_THAT(Origin("d"), HasLoansTo({"dl"}, "p1"));
-  EXPECT_THAT(Origin("e"), HasLoansTo({"el"}, "p1"));
-  EXPECT_THAT(Origin("f"), HasLoansTo({"fl"}, "p1"));
+  EXPECT_THAT(Origin("a"), HasLoansTo({"al.*"}, "p1"));
+  EXPECT_THAT(Origin("b"), HasLoansTo({"bl.*"}, "p1"));
+  EXPECT_THAT(Origin("c"), HasLoansTo({"cl.*"}, "p1"));
+  EXPECT_THAT(Origin("d"), HasLoansTo({"dl.*"}, "p1"));
+  EXPECT_THAT(Origin("e"), HasLoansTo({"el.*"}, "p1"));
+  EXPECT_THAT(Origin("f"), HasLoansTo({"fl.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, GslPointerConstructFromView) {
@@ -833,11 +815,11 @@ TEST_F(LifetimeAnalysisTest, GslPointerConstructFromView) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("x"), HasLoansTo({"a"}, "p1"));
-  EXPECT_THAT(Origin("y"), HasLoansTo({"a"}, "p1"));
-  EXPECT_THAT(Origin("z"), HasLoansTo({"a"}, "p1"));
-  EXPECT_THAT(Origin("p"), HasLoansTo({"a"}, "p1"));
-  EXPECT_THAT(Origin("q"), HasLoansTo({"a"}, "p1"));
+  EXPECT_THAT(Origin("x"), HasLoansTo({"a.*"}, "p1"));
+  EXPECT_THAT(Origin("y"), HasLoansTo({"a.*"}, "p1"));
+  EXPECT_THAT(Origin("z"), HasLoansTo({"a.*"}, "p1"));
+  EXPECT_THAT(Origin("p"), HasLoansTo({"a.*"}, "p1"));
+  EXPECT_THAT(Origin("q"), HasLoansTo({"a.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, GslPointerInConditionalOperator) {
@@ -848,7 +830,7 @@ TEST_F(LifetimeAnalysisTest, GslPointerInConditionalOperator) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("v"), HasLoansTo({"a", "b"}, "p1"));
+  EXPECT_THAT(Origin("v"), HasLoansTo({"a.*", "b.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, ExtraParenthesis) {
@@ -862,10 +844,10 @@ TEST_F(LifetimeAnalysisTest, ExtraParenthesis) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("x"), HasLoansTo({"a"}, "p1"));
-  EXPECT_THAT(Origin("y"), HasLoansTo({"a"}, "p1"));
-  EXPECT_THAT(Origin("z"), HasLoansTo({"a"}, "p1"));
-  EXPECT_THAT(Origin("p"), HasLoansTo({"a"}, "p1"));
+  EXPECT_THAT(Origin("x"), HasLoansTo({"a.*"}, "p1"));
+  EXPECT_THAT(Origin("y"), HasLoansTo({"a.*"}, "p1"));
+  EXPECT_THAT(Origin("z"), HasLoansTo({"a.*"}, "p1"));
+  EXPECT_THAT(Origin("p"), HasLoansTo({"a.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, ViewFromTemporary) {
@@ -892,8 +874,8 @@ TEST_F(LifetimeAnalysisTest, GslPointerWithConstAndAuto) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("v1"), HasLoansTo({"a"}, "p1"));
-  EXPECT_THAT(Origin("v2"), HasLoansTo({"a"}, "p1"));
+  EXPECT_THAT(Origin("v1"), HasLoansTo({"a.*"}, "p1"));
+  EXPECT_THAT(Origin("v2"), HasLoansTo({"a.*"}, "p1"));
   EXPECT_THAT(Origin("v3"), HasLoansTo({"v2"}, "p1"));
 }
 
@@ -913,9 +895,9 @@ TEST_F(LifetimeAnalysisTest, GslPointerPropagation) {
     }
   )");
 
-  EXPECT_THAT(Origin("x"), HasLoansTo({"a"}, "p1"));
-  EXPECT_THAT(Origin("y"), HasLoansTo({"a"}, "p2"));
-  EXPECT_THAT(Origin("z"), HasLoansTo({"a"}, "p3"));
+  EXPECT_THAT(Origin("x"), HasLoansTo({"a.*"}, "p1"));
+  EXPECT_THAT(Origin("y"), HasLoansTo({"a.*"}, "p2"));
+  EXPECT_THAT(Origin("z"), HasLoansTo({"a.*"}, "p3"));
 }
 
 TEST_F(LifetimeAnalysisTest, GslPointerReassignment) {
@@ -934,9 +916,9 @@ TEST_F(LifetimeAnalysisTest, GslPointerReassignment) {
     }
   )");
 
-  EXPECT_THAT(Origin("v"), HasLoansTo({"safe"}, "p1"));
-  EXPECT_THAT(Origin("v"), HasLoansTo({"unsafe"}, "p2"));
-  EXPECT_THAT(Origin("v"), HasLoansTo({"unsafe"}, "p3"));
+  EXPECT_THAT(Origin("v"), HasLoansTo({"safe.*"}, "p1"));
+  EXPECT_THAT(Origin("v"), HasLoansTo({"unsafe.*"}, "p2"));
+  EXPECT_THAT(Origin("v"), HasLoansTo({"unsafe.*"}, "p3"));
 }
 
 TEST_F(LifetimeAnalysisTest, GslPointerConversionOperator) {
@@ -960,8 +942,8 @@ TEST_F(LifetimeAnalysisTest, GslPointerConversionOperator) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("x"), HasLoansTo({"xl"}, "p1"));
-  EXPECT_THAT(Origin("y"), HasLoansTo({"yl"}, "p1"));
+  EXPECT_THAT(Origin("x"), HasLoansTo({"xl.*"}, "p1"));
+  EXPECT_THAT(Origin("y"), HasLoansTo({"yl.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, LifetimeboundSimple) {
@@ -977,10 +959,10 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundSimple) {
       POINT(p2);
     }
   )");
-  EXPECT_THAT(Origin("v1"), HasLoansTo({"a"}, "p1"));
+  EXPECT_THAT(Origin("v1"), HasLoansTo({"a.*"}, "p1"));
   // The origin of v2 should now contain the loan to 'o' from v1.
-  EXPECT_THAT(Origin("v2"), HasLoansTo({"a"}, "p2"));
-  EXPECT_THAT(Origin("v3"), HasLoansTo({"b"}, "p2"));
+  EXPECT_THAT(Origin("v2"), HasLoansTo({"a.*"}, "p2"));
+  EXPECT_THAT(Origin("v3"), HasLoansTo({"b.*"}, "p2"));
 }
 
 TEST_F(LifetimeAnalysisTest, LifetimeboundMemberFunctionOfAView) {
@@ -997,7 +979,7 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundMemberFunctionOfAView) {
       POINT(p2);
     }
   )");
-  EXPECT_THAT(Origin("v1"), HasLoansTo({"o"}, "p1"));
+  EXPECT_THAT(Origin("v1"), HasLoansTo({"o.*"}, "p1"));
   // The call v1.pass() is bound to 'v1'.
   EXPECT_THAT(Origin("v2"), HasLoansTo({"v1"}, "p2"));
 }
@@ -1029,11 +1011,11 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundMultipleArgs) {
       POINT(p2);
     }
   )");
-  EXPECT_THAT(Origin("v1"), HasLoansTo({"o1"}, "p1"));
-  EXPECT_THAT(Origin("v2"), HasLoansTo({"o2"}, "p2"));
+  EXPECT_THAT(Origin("v1"), HasLoansTo({"o1.*"}, "p1"));
+  EXPECT_THAT(Origin("v2"), HasLoansTo({"o2.*"}, "p2"));
   // v3 should have loans from both v1 and v2, demonstrating the union of
   // loans.
-  EXPECT_THAT(Origin("v3"), HasLoansTo({"o1", "o2"}, "p2"));
+  EXPECT_THAT(Origin("v3"), HasLoansTo({"o1.*", "o2.*"}, "p2"));
 }
 
 TEST_F(LifetimeAnalysisTest, LifetimeboundMixedArgs) {
@@ -1049,10 +1031,10 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundMixedArgs) {
       POINT(p2);
     }
   )");
-  EXPECT_THAT(Origin("v1"), HasLoansTo({"o1"}, "p1"));
-  EXPECT_THAT(Origin("v2"), HasLoansTo({"o2"}, "p1"));
+  EXPECT_THAT(Origin("v1"), HasLoansTo({"o1.*"}, "p1"));
+  EXPECT_THAT(Origin("v2"), HasLoansTo({"o2.*"}, "p1"));
   // v3 should only have loans from v1, as v2 is not lifetimebound.
-  EXPECT_THAT(Origin("v3"), HasLoansTo({"o1"}, "p2"));
+  EXPECT_THAT(Origin("v3"), HasLoansTo({"o1.*"}, "p2"));
 }
 
 TEST_F(LifetimeAnalysisTest, LifetimeboundChainOfViews) {
@@ -1068,9 +1050,9 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundChainOfViews) {
       POINT(p2);
     }
   )");
-  EXPECT_THAT(Origin("v1"), HasLoansTo({"obj"}, "p1"));
+  EXPECT_THAT(Origin("v1"), HasLoansTo({"obj.*"}, "p1"));
   // v2 should inherit the loan from v1 through the chain of calls.
-  EXPECT_THAT(Origin("v2"), HasLoansTo({"obj"}, "p2"));
+  EXPECT_THAT(Origin("v2"), HasLoansTo({"obj.*"}, "p2"));
 }
 
 TEST_F(LifetimeAnalysisTest, LifetimeboundRawPointerParameter) {
@@ -1097,7 +1079,7 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundRawPointerParameter) {
   EXPECT_THAT(Origin("v"), HasLoansTo({"a"}, "p1"));
   EXPECT_THAT(Origin("ptr1"), HasLoansTo({"b"}, "p2"));
   EXPECT_THAT(Origin("ptr2"), HasLoansTo({"b"}, "p2"));
-  EXPECT_THAT(Origin("v2"), HasLoansTo({"c"}, "p3"));
+  EXPECT_THAT(Origin("v2"), HasLoansTo({"c.*"}, "p3"));
 }
 
 TEST_F(LifetimeAnalysisTest, LifetimeboundConstRefViewParameter) {
@@ -1110,7 +1092,7 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundConstRefViewParameter) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("v1"), HasLoansTo({"o"}, "p1"));
+  EXPECT_THAT(Origin("v1"), HasLoansTo({"o.*"}, "p1"));
   EXPECT_THAT(Origin("v2"), HasLoansTo({"v1"}, "p1"));
 }
 
@@ -1145,12 +1127,31 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundReturnReference) {
       POINT(p3);
     }
   )");
-  EXPECT_THAT(Origin("v1"), HasLoansTo({"a"}, "p1"));
-  EXPECT_THAT(Origin("v2"), HasLoansTo({"a"}, "p2"));
+  // All views have a single interior path (`.*`) because the implementation
+  // prevents accumulation of multiple `.*` suffixes (see
+  // DoNotAddMultipleInteriors test). When `Identity(v1)` returns a `MyObj&`
+  // with loan `a.*`, constructing `View v2` from it would normally add another
+  // `.*`, but the implementation actively prevents duplication of '.*'.
+  EXPECT_THAT(Origin("v1"), HasLoansTo({"a.*"}, "p1"));
+  EXPECT_THAT(Origin("v2"), HasLoansTo({"a.*"}, "p2"));
+  EXPECT_THAT(Origin("v3"), HasLoansTo({"a.*"}, "p2"));
+  EXPECT_THAT(Origin("v4"), HasLoansTo({"c.*"}, "p3"));
+}
 
-  EXPECT_THAT(Origin("v3"), HasLoansTo({"a"}, "p2"));
-
-  EXPECT_THAT(Origin("v4"), HasLoansTo({"c"}, "p3"));
+TEST_F(LifetimeAnalysisTest, DoNotAddMultipleInteriors) {
+  SetupTest(R"(
+    const MyObj& Identity(View v [[clang::lifetimebound]]);
+    void target() {
+      MyObj a;
+      View v = a;      
+      for (int i = 0; i < 10; ++i) {
+        const MyObj& b = Identity(v);
+        v = Identity(b);
+        POINT(p1);
+      }
+    }
+  )");
+  EXPECT_THAT(Origin("v"), HasLoansTo({"a.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, LifetimeboundTemplateFunctionReturnRef) {
@@ -1167,7 +1168,7 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundTemplateFunctionReturnRef) {
       POINT(p2);
     }
   )");
-  EXPECT_THAT(Origin("v1"), HasLoansTo({"a"}, "p1"));
+  EXPECT_THAT(Origin("v1"), HasLoansTo({"a.*"}, "p1"));
   EXPECT_THAT(Origin("v2"), HasLoansTo({}, "p2"));
   EXPECT_THAT(Origin("v3"), HasLoansTo({"v2"}, "p2"));
 }
@@ -1191,7 +1192,7 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundTemplateFunctionReturnVal) {
   )");
   EXPECT_THAT(Origin("v1"), HasLoanToATemporary("p1"));
 
-  EXPECT_THAT(Origin("v2"), HasLoansTo({"b"}, "p2"));
+  EXPECT_THAT(Origin("v2"), HasLoansTo({"b.*"}, "p2"));
   EXPECT_THAT(Origin("v3"), HasLoansTo({"v2"}, "p2"));
   // View temporary on RHS is lifetime-extended.
   EXPECT_THAT(Origin("v4"), HasLoansTo({}, "p2"));
@@ -1211,6 +1212,86 @@ TEST_F(LifetimeAnalysisTest, LifetimeboundConversionOperator) {
     }
   )");
   EXPECT_THAT(Origin("v"), HasLoansTo({"owner"}, "p1"));
+}
+
+TEST_F(LifetimeAnalysisTest, NestedFieldAccess) {
+  SetupTest(R"(
+    struct Inner { int val; };
+    struct Outer { Inner f; };
+    void target() {
+        Outer o;
+        Outer *p = &o;
+        int* p1 = &o.f.val;
+        POINT(a);
+        int* p2 = &p->f.val;
+        POINT(b);
+    }
+  )");
+  EXPECT_THAT(Origin("p1"), HasLoansTo({"o.f.val"}, "a"));
+  EXPECT_THAT(Origin("p2"), HasLoansTo({"o.f.val"}, "b"));
+}
+
+TEST_F(LifetimeAnalysisTest, PlaceholderInterior) {
+  SetupTest(R"(
+    void target(const MyObj& p) {
+      View v = p;
+      POINT(a);
+    }
+  )");
+  EXPECT_THAT(Origin("v"), HasLoansTo({"$p.*"}, "a"));
+}
+
+TEST_F(LifetimeAnalysisTest, PlaceholderParamField) {
+  SetupTest(R"(
+    struct S { int val; };
+    void target(S* p) {
+      int* p1 = &p->val;
+      POINT(a);
+    }
+  )");
+  EXPECT_THAT(Origin("p1"), HasLoansTo({"$p.val"}, "a"));
+}
+
+TEST_F(LifetimeAnalysisTest, PlaceholderThisField) {
+  SetupTest(R"(
+    struct S {
+      int f;
+      void target() {
+        int* p1 = &f;
+        POINT(a);
+      }
+    };
+  )");
+  EXPECT_THAT(Origin("p1"), HasLoansTo({"$this.f"}, "a"));
+}
+
+TEST_F(LifetimeAnalysisTest, PlaceholderThisInterior) {
+  SetupTest(R"(
+    struct S {
+      MyObj o;
+      void target() {
+        View v = o;
+        POINT(a);
+      }
+    };
+  )");
+  EXPECT_THAT(Origin("v"), HasLoansTo({"$this.o.*"}, "a"));
+}
+
+TEST_F(LifetimeAnalysisTest, PlaceholderThisNestedField) {
+  SetupTest(R"(
+    struct S1 {
+      int f;
+    };
+    struct S {
+      S1 s1;
+      void target() {
+        int* p1 = &s1.f;
+        POINT(a);
+      }
+    };
+  )");
+  EXPECT_THAT(Origin("p1"), HasLoansTo({"$this.s1.f"}, "a"));
 }
 
 TEST_F(LifetimeAnalysisTest, LivenessDeadPointer) {
@@ -1678,7 +1759,7 @@ TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_STLBegin) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("it"), HasLoansTo({"vec"}, "p1"));
+  EXPECT_THAT(Origin("it"), HasLoansTo({"vec.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_OwnerDeref) {
@@ -1696,7 +1777,7 @@ TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_OwnerDeref) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("r"), HasLoansTo({"opt"}, "p1"));
+  EXPECT_THAT(Origin("r"), HasLoansTo({"opt.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_Value) {
@@ -1714,7 +1795,7 @@ TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_Value) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("r"), HasLoansTo({"opt"}, "p1"));
+  EXPECT_THAT(Origin("r"), HasLoansTo({"opt.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_UniquePtr_Get) {
@@ -1732,7 +1813,7 @@ TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_UniquePtr_Get) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("r"), HasLoansTo({"up"}, "p1"));
+  EXPECT_THAT(Origin("r"), HasLoansTo({"up.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_ConversionOperator) {
@@ -1751,7 +1832,7 @@ TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_ConversionOperator) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("ptr"), HasLoansTo({"owner"}, "p1"));
+  EXPECT_THAT(Origin("ptr"), HasLoansTo({"owner.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_MapFind) {
@@ -1770,7 +1851,7 @@ TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_MapFind) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("it"), HasLoansTo({"m"}, "p1"));
+  EXPECT_THAT(Origin("it"), HasLoansTo({"m.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_GSLPointerArg) {
@@ -1816,11 +1897,11 @@ TEST_F(LifetimeAnalysisTest, TrackImplicitObjectArg_GSLPointerArg) {
       POINT(end);
     }
   )");
-  EXPECT_THAT(Origin("sv1"), HasLoansTo({"s1"}, "end"));
-  EXPECT_THAT(Origin("sv2"), HasLoansTo({"s2"}, "end"));
-  EXPECT_THAT(Origin("sv3"), HasLoansTo({"s3"}, "end"));
-  EXPECT_THAT(Origin("sv4"), HasLoansTo({"s4"}, "end"));
-  EXPECT_THAT(Origin("sv5"), HasLoansTo({"s5"}, "end"));
+  EXPECT_THAT(Origin("sv1"), HasLoansTo({"s1.*"}, "end"));
+  EXPECT_THAT(Origin("sv2"), HasLoansTo({"s2.*"}, "end"));
+  EXPECT_THAT(Origin("sv3"), HasLoansTo({"s3.*"}, "end"));
+  EXPECT_THAT(Origin("sv4"), HasLoansTo({"s4.*"}, "end"));
+  EXPECT_THAT(Origin("sv5"), HasLoansTo({"s5.*"}, "end"));
 }
 
 // ========================================================================= //
@@ -1909,7 +1990,7 @@ TEST_F(LifetimeAnalysisTest, DerivedToBaseThisArg) {
       POINT(p1);
     }
   )");
-  EXPECT_THAT(Origin("view"), HasLoansTo({"my_obj_or"}, "p1"));
+  EXPECT_THAT(Origin("view"), HasLoansTo({"my_obj_or.*"}, "p1"));
 }
 
 TEST_F(LifetimeAnalysisTest, DerivedViewWithNoAnnotation) {

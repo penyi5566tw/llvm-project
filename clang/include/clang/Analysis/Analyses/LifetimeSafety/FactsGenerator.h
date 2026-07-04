@@ -67,6 +67,7 @@ private:
   bool hasOrigins(const Expr *E) const;
 
   void flow(OriginList *Dst, OriginList *Src, bool Kill,
+            std::optional<PathElement> AddPath = std::nullopt,
             const CFGBlock *Block = nullptr);
 
   /// Handles assignment for both BinaryOperator and CXXOperatorCallExpr.

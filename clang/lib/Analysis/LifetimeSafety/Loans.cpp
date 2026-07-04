@@ -11,33 +11,90 @@
 namespace clang::lifetimes::internal {
 
 void AccessPath::dump(llvm::raw_ostream &OS) const {
-  switch (K) {
-  case Kind::ValueDecl:
-    if (const clang::ValueDecl *VD = getAsValueDecl())
-      OS << VD->getNameAsString();
-    break;
-  case Kind::MaterializeTemporary:
-    if (const clang::MaterializeTemporaryExpr *MTE =
-            getAsMaterializeTemporaryExpr())
-      OS << "MaterializeTemporaryExpr at " << MTE;
-    break;
-  case Kind::PlaceholderParam:
-    if (const auto *PVD = getAsPlaceholderParam())
+  if (const clang::ValueDecl *VD = getAsValueDecl())
+    OS << VD->getNameAsString();
+  else if (const clang::MaterializeTemporaryExpr *MTE =
+               getAsMaterializeTemporaryExpr())
+    OS << "MaterializeTemporaryExpr at " << MTE;
+  else if (const PlaceholderBase *PB = getAsPlaceholderBase()) {
+    if (const auto *PVD = PB->getParmVarDecl())
       OS << "$" << PVD->getNameAsString();
-    break;
-  case Kind::PlaceholderThis:
-    OS << "$this";
-    break;
-  case Kind::NewAllocation:
-    if (const auto *E = getAsNewAllocation())
-      OS << "NewAllocation at " << E;
-    break;
-  }
+    else if (PB->getMethodDecl())
+      OS << "$this";
+  } else if (const auto *E = getAsNewAllocation())
+    OS << "NewAllocation at " << E;
+  else
+    llvm_unreachable("access path base invalid");
+  for (const auto &E : Elements)
+    E.dump(OS);
 }
 
 void Loan::dump(llvm::raw_ostream &OS) const {
   OS << getID() << " (Path: ";
   Path.dump(OS);
   OS << ")";
+}
+
+
+const PlaceholderBase *
+LoanManager::getOrCreatePlaceholderBase(const ParmVarDecl *PVD) {
+  llvm::FoldingSetNodeID ID;
+  ID.AddPointer(PVD);
+  void *InsertPos = nullptr;
+  if (PlaceholderBase *Existing =
+          PlaceholderBases.FindNodeOrInsertPos(ID, InsertPos))
+    return Existing;
+
+  void *Mem = LoanAllocator.Allocate<PlaceholderBase>();
+  PlaceholderBase *NewPB = new (Mem) PlaceholderBase(PVD);
+  PlaceholderBases.InsertNode(NewPB, InsertPos);
+  return NewPB;
+}
+
+const PlaceholderBase *
+LoanManager::getOrCreatePlaceholderBase(const CXXMethodDecl *MD) {
+  llvm::FoldingSetNodeID ID;
+  ID.AddPointer(MD);
+  void *InsertPos = nullptr;
+  if (PlaceholderBase *Existing =
+          PlaceholderBases.FindNodeOrInsertPos(ID, InsertPos))
+    return Existing;
+
+  void *Mem = LoanAllocator.Allocate<PlaceholderBase>();
+  PlaceholderBase *NewPB = new (Mem) PlaceholderBase(MD);
+  PlaceholderBases.InsertNode(NewPB, InsertPos);
+  return NewPB;
+}
+
+Loan *LoanManager::getOrCreateExtendedLoan(LoanID BaseLoanID,
+                                           PathElement Element) {
+
+  ExtensionCacheKey Key = {BaseLoanID, Element};
+  auto It = ExtensionCache.find(Key);
+  if (It != ExtensionCache.end())
+    return It->second;
+  const auto *BaseLoan = getLoan(BaseLoanID);
+  // TODO: Polish comment: Do not add interior access if the base loan path
+  // already contains that at the end.
+  if (Element.isInterior() &&
+      !BaseLoan->getAccessPath().getElements().empty() &&
+      BaseLoan->getAccessPath().getElements().back().isInterior())
+    return ExtensionCache[Key] = const_cast<Loan *>(BaseLoan);
+
+  AccessPath ExtendedPath(BaseLoan->getAccessPath(), Element);
+  return ExtensionCache[Key] =
+             createLoan(ExtendedPath, BaseLoan->getIssueExpr());
+}
+
+llvm::SmallVector<LoanID, 2>
+LoanManager::getBaseLoans(LoanID ExtendedLoanID, PathElement Element) const {
+  llvm::SmallVector<LoanID, 2> Result;
+  for (const auto &Entry : ExtensionCache) {
+    if (Entry.second->getID() == ExtendedLoanID &&
+        Entry.first.second == Element) {
+      Result.push_back(Entry.first.first);
+    }
+  }
+  return Result;
 }
 } // namespace clang::lifetimes::internal
