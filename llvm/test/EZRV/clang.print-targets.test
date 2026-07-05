@@ -1,0 +1,4 @@
+// RUN: clang --print-targets | FileCheck %s
+// CHECK: ezrv32
+// CHECK: riscv32
+// CHECK: riscv64

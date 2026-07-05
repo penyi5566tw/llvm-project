@@ -1,0 +1,10 @@
+# RUN: llvm-mc -arch=riscv32 -assemble -show-encoding %s | \
+# RUN:   FileCheck %s --check-prefix=CHECK-RISCV
+#
+# RUN: not --crash llvm-mc -arch=ezrv32 -assemble -show-encoding %s 2>&1 | \
+# RUN:   FileCheck %s --check-prefix=CHECK-EZRV
+#
+# CHECK-RISCV: [0x73,0x00,0x00,0x00]
+# CHECK-EZRV: Assertion `MRI && "Unable to create target register info!"'
+
+ecall

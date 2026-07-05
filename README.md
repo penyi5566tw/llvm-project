@@ -1,3 +1,24 @@
+# LLLVM forked by penyi5566
+
+TODO : EZRV, a easy RISCV llvm backend by penyi5566
+(0) Genrate asm and verify with gcc/qemu riscv
+(1) Support RISCV IMAFC
+(2) C language testsuite
+(3) Support bit manipulate : zba, zbb, zbc, zbs
+(4) Support code size reduction : zcb, zcmp, zcmt
+(5) Support RVV, RVP, and auto-vectorize
+
+TODO : ARM
+(0) Genrate asm and verify with gcc/qemu arm
+(1) Support fixed length vector : NEON
+(2) Support scalable vector : SVE
+
+TODO : VLIW backend
+(1) Easy Hexagon
+(2) TI C66x
+(3) Study AMD AIE : non-interlock pipeline, packetizer
+(4) Study SMS/software pipeline
+
 # The LLVM Compiler Infrastructure
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/llvm/llvm-project/badge)](https://securityscorecards.dev/viewer/?uri=github.com/llvm/llvm-project)

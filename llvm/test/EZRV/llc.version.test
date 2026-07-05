@@ -1,0 +1,4 @@
+// RUN: llc --version | FileCheck %s
+// CHECK: ezrv32
+// CHECK: riscv32
+// CHECK: riscv64
