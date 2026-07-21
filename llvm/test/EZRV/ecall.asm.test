@@ -5,6 +5,6 @@
 # RUN:   FileCheck %s --check-prefix=CHECK-EZRV
 #
 # CHECK-RISCV: [0x73,0x00,0x00,0x00]
-# CHECK-EZRV: Assertion `MRI && "Unable to create target register info!"'
+# CHECK-EZRV: Assertion `MAI && "Unable to create target asm info!"'
 
 ecall
