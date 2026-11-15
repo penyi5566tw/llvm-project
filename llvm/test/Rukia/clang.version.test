@@ -1,0 +1,2 @@
+# RUN: clang -print-targets | FileCheck %s
+# CHECK: rukia32 - 32-bit Rukia (toy RISC-V)
