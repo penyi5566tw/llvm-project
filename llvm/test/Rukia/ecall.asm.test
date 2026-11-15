@@ -1,0 +1,5 @@
+# RUN: llvm-mc %s -triple=riscv32 -show-encoding | FileCheck %s
+# RUN: llvm-mc %s -triple=rukia32 -show-encoding | FileCheck %s
+
+# CHECK: ecall # encoding: [0x73,0x00,0x00,0x00]
+ecall
