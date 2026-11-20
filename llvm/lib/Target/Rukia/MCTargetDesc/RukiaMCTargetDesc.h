@@ -15,6 +15,15 @@
 #ifndef LLVM_LIB_TARGET_RUKIA_MCTARGETDESC_RUKIAMCTARGETDESC_H
 #define LLVM_LIB_TARGET_RUKIA_MCTARGETDESC_RUKIAMCTARGETDESC_H
 
+namespace llvm {
+class MCCodeEmitter;
+class MCContext;
+class MCInstrInfo;
+
+MCCodeEmitter *createRukiaMCCodeEmitter(const MCInstrInfo &MCII,
+                                        MCContext &Ctx);
+} // namespace llvm
+
 #define GET_REGINFO_ENUM
 #include "RukiaGenRegisterInfo.inc"
 
