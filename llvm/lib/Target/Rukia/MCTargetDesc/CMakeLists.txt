@@ -1,4 +1,5 @@
 add_llvm_component_library(LLVMRukiaDesc
+  RukiaMCAsmInfo.cpp
   RukiaMCTargetDesc.cpp
 
   LINK_COMPONENTS
