@@ -2,6 +2,7 @@ add_llvm_component_group(Rukia)
 
 set(LLVM_TARGET_DEFINITIONS Rukia.td)
 
+tablegen(LLVM RukiaGenAsmMatcher.inc -gen-asm-matcher)
 tablegen(LLVM RukiaGenAsmWriter.inc -gen-asm-writer)
 tablegen(LLVM RukiaGenDisassemblerTables.inc -gen-disassembler)
 tablegen(LLVM RukiaGenInstrInfo.inc -gen-instr-info)
@@ -28,6 +29,7 @@ add_llvm_target(RukiaCodeGen
   Rukia
   )
 
+add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
