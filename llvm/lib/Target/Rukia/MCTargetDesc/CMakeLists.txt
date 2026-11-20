@@ -1,6 +1,7 @@
 add_llvm_component_library(LLVMRukiaDesc
   RukiaInstPrinter.cpp
   RukiaMCAsmInfo.cpp
+  RukiaMCCodeEmitter.cpp
   RukiaMCTargetDesc.cpp
 
   LINK_COMPONENTS

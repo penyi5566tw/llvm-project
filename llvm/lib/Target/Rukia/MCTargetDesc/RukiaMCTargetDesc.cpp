@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 //
 // Registers the Rukia MC-layer components: MCAsmInfo, MCInstrInfo,
-// MCRegisterInfo, MCSubtargetInfo and MCInstPrinter.
+// MCRegisterInfo, MCSubtargetInfo, MCInstPrinter and MCCodeEmitter.
 //
 //===----------------------------------------------------------------------===//
 
@@ -71,4 +71,5 @@ LLVMInitializeRukiaTargetMC() {
   TargetRegistry::RegisterMCRegInfo(T, createRukiaMCRegisterInfo);
   TargetRegistry::RegisterMCSubtargetInfo(T, createRukiaMCSubtargetInfo);
   TargetRegistry::RegisterMCInstPrinter(T, createRukiaMCInstPrinter);
+  TargetRegistry::RegisterMCCodeEmitter(T, createRukiaMCCodeEmitter);
 }
