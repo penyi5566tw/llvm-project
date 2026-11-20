@@ -1,4 +1,5 @@
 add_llvm_component_library(LLVMRukiaDesc
+  RukiaInstPrinter.cpp
   RukiaMCAsmInfo.cpp
   RukiaMCTargetDesc.cpp
 
