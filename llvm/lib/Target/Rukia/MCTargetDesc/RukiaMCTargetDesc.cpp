@@ -7,11 +7,12 @@
 //===----------------------------------------------------------------------===//
 //
 // Registers the Rukia MC-layer components: MCAsmInfo, MCInstrInfo,
-// MCRegisterInfo and MCSubtargetInfo.
+// MCRegisterInfo, MCSubtargetInfo and MCInstPrinter.
 //
 //===----------------------------------------------------------------------===//
 
 #include "MCTargetDesc/RukiaMCTargetDesc.h"
+#include "MCTargetDesc/RukiaInstPrinter.h"
 #include "MCTargetDesc/RukiaMCAsmInfo.h"
 #include "TargetInfo/RukiaTargetInfo.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -54,6 +55,14 @@ createRukiaMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
   return createRukiaMCSubtargetInfoImpl(TT, CPU, /*TuneCPU=*/CPU, FS);
 }
 
+static MCInstPrinter *createRukiaMCInstPrinter(const Triple &T,
+                                               unsigned SyntaxVariant,
+                                               const MCAsmInfo &MAI,
+                                               const MCInstrInfo &MII,
+                                               const MCRegisterInfo &MRI) {
+  return new RukiaInstPrinter(MAI, MII, MRI);
+}
+
 extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
 LLVMInitializeRukiaTargetMC() {
   Target &T = getTheRukia32Target();
@@ -61,4 +70,5 @@ LLVMInitializeRukiaTargetMC() {
   TargetRegistry::RegisterMCInstrInfo(T, createRukiaMCInstrInfo);
   TargetRegistry::RegisterMCRegInfo(T, createRukiaMCRegisterInfo);
   TargetRegistry::RegisterMCSubtargetInfo(T, createRukiaMCSubtargetInfo);
+  TargetRegistry::RegisterMCInstPrinter(T, createRukiaMCInstPrinter);
 }

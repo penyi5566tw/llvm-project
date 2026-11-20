@@ -2,6 +2,7 @@ add_llvm_component_group(Rukia)
 
 set(LLVM_TARGET_DEFINITIONS Rukia.td)
 
+tablegen(LLVM RukiaGenAsmWriter.inc -gen-asm-writer)
 tablegen(LLVM RukiaGenInstrInfo.inc -gen-instr-info)
 tablegen(LLVM RukiaGenRegisterInfo.inc -gen-register-info)
 tablegen(LLVM RukiaGenSubtargetInfo.inc -gen-subtarget)
