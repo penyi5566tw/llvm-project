@@ -63,6 +63,8 @@ RukiaMCCodeEmitter::getMachineOpValue(const MCInst &MI, const MCOperand &MO,
                                       const MCSubtargetInfo &STI) const {
   if (MO.isReg()) // HWEncoding from RukiaRegisterInfo.td
     return Ctx.getRegisterInfo()->getEncodingValue(MO.getReg());
+  if (MO.isImm()) // TableGen masks it to the field width (imm12 -> 12 bits).
+    return static_cast<uint64_t>(MO.getImm());
   llvm_unreachable("Unhandled operand kind");
 }
 

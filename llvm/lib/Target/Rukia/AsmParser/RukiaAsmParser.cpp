@@ -50,17 +50,21 @@ public:
 
 // One parsed operand. The mnemonic itself is a Token operand.
 struct RukiaOperand : public MCParsedAsmOperand {
-  enum KindTy { Token, Register } Kind;
+  enum KindTy { Token, Register, Immediate } Kind;
   SMLoc StartLoc, EndLoc;
   StringRef Tok;  // Kind == Token
   MCRegister Reg; // Kind == Register
+  int64_t Imm;    // Kind == Immediate
 
   explicit RukiaOperand(KindTy K) : Kind(K) {}
 
   bool isToken() const override { return Kind == Token; }
   bool isReg() const override { return Kind == Register; }
-  bool isImm() const override { return false; }
+  bool isImm() const override { return Kind == Immediate; }
   bool isMem() const override { return false; }
+
+  // Predicate of SImm12AsmOperand: [-2048, 2047].
+  bool isSImm12() const { return isImm() && isInt<12>(Imm); }
 
   StringRef getToken() const {
     assert(isToken() && "Invalid access!");
@@ -79,11 +83,19 @@ struct RukiaOperand : public MCParsedAsmOperand {
     Inst.addOperand(MCOperand::createReg(getReg()));
   }
 
+  // RenderMethod of SImm12AsmOperand.
+  void addImmOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createImm(Imm));
+  }
+
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
     if (isToken())
       OS << "'" << Tok << "'";
-    else
+    else if (isReg())
       OS << "<register " << Reg.id() << ">";
+    else
+      OS << "<imm " << Imm << ">";
   }
 
   static std::unique_ptr<RukiaOperand> createToken(StringRef Str, SMLoc S) {
@@ -97,6 +109,15 @@ struct RukiaOperand : public MCParsedAsmOperand {
                                                  SMLoc E) {
     auto Op = std::make_unique<RukiaOperand>(Register);
     Op->Reg = R;
+    Op->StartLoc = S;
+    Op->EndLoc = E;
+    return Op;
+  }
+
+  static std::unique_ptr<RukiaOperand> createImm(int64_t Val, SMLoc S,
+                                                 SMLoc E) {
+    auto Op = std::make_unique<RukiaOperand>(Immediate);
+    Op->Imm = Val;
     Op->StartLoc = S;
     Op->EndLoc = E;
     return Op;
@@ -140,15 +161,21 @@ bool RukiaAsmParser::parseInstruction(ParseInstructionInfo &Info,
   // The mnemonic is always the first operand.
   Operands.push_back(RukiaOperand::createToken(Name, NameLoc));
 
-  // Comma-separated register operands, e.g. "x10, x11, x12".
-  // TODO: immediate operands.
+  // Comma-separated operands, e.g. "x10, x11, x12" or "x10, x11, -1".
   if (getLexer().isNot(AsmToken::EndOfStatement)) {
     do {
       MCRegister Reg;
       SMLoc S, E;
-      if (!tryParseRegister(Reg, S, E).isSuccess())
-        return Error(getLexer().getLoc(), "expected register");
-      Operands.push_back(RukiaOperand::createReg(Reg, S, E));
+      if (tryParseRegister(Reg, S, E).isSuccess()) {
+        Operands.push_back(RukiaOperand::createReg(Reg, S, E));
+        continue;
+      }
+      int64_t Val;
+      S = getLexer().getLoc();
+      if (getParser().parseAbsoluteExpression(Val))
+        return true; // "expected absolute expression" already reported
+      E = getLexer().getLoc();
+      Operands.push_back(RukiaOperand::createImm(Val, S, E));
     } while (parseOptionalToken(AsmToken::Comma));
   }
 

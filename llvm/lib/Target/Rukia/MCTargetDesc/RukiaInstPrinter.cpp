@@ -32,6 +32,8 @@ void RukiaInstPrinter::printRegName(raw_ostream &O, MCRegister Reg) {
 void RukiaInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
                                     raw_ostream &O) {
   const MCOperand &MO = MI->getOperand(OpNo);
-  assert(MO.isReg() && "Only register operands so far");
-  printRegName(O, MO.getReg());
+  if (MO.isReg())
+    return printRegName(O, MO.getReg());
+  assert(MO.isImm() && "Unknown operand kind");
+  O << MO.getImm();
 }

@@ -14,6 +14,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Endian.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace llvm;
 
@@ -52,6 +53,16 @@ static DecodeStatus DecodeGPRRegisterClass(MCInst &Inst, uint32_t RegNo,
   if (RegNo >= 32)
     return MCDisassembler::Fail;
   Inst.addOperand(MCOperand::createReg(Rukia::GPR_X0 + RegNo));
+  return MCDisassembler::Success;
+}
+
+// Sign-extend an N-bit immediate field (simm12 uses N = 12).
+template <unsigned N>
+static DecodeStatus decodeSImmOperand(MCInst &Inst, uint32_t Imm,
+                                      int64_t Address,
+                                      const MCDisassembler *Decoder) {
+  assert(isUInt<N>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(SignExtend64<N>(Imm)));
   return MCDisassembler::Success;
 }
 

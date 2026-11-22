@@ -1,0 +1,9 @@
+# RUN: llvm-mc %s -triple=riscv32 -disassemble | FileCheck %s
+# RUN: llvm-mc %s -triple=rukia32 -disassemble | FileCheck %s
+
+# CHECK: addi a0, a1, -1
+[0x13,0x85,0xf5,0xff]
+# CHECK: addi a0, a1, 2047
+[0x13,0x85,0xf5,0x7f]
+# CHECK: addi a0, a1, -2048
+[0x13,0x85,0x05,0x80]
