@@ -1,0 +1,5 @@
+# RUN: llvm-mc %s -triple=riscv32 -assemble -show-encoding | FileCheck %s
+# RUN: llvm-mc %s -triple=rukia32 -assemble -show-encoding | FileCheck %s
+
+# CHECK: add a0, a1, a2 # encoding: [0x33,0x85,0xc5,0x00]
+add x10, x11, x12

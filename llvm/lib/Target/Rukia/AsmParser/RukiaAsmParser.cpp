@@ -92,6 +92,15 @@ struct RukiaOperand : public MCParsedAsmOperand {
     Op->StartLoc = Op->EndLoc = S;
     return Op;
   }
+
+  static std::unique_ptr<RukiaOperand> createReg(MCRegister R, SMLoc S,
+                                                 SMLoc E) {
+    auto Op = std::make_unique<RukiaOperand>(Register);
+    Op->Reg = R;
+    Op->StartLoc = S;
+    Op->EndLoc = E;
+    return Op;
+  }
 };
 
 } // end anonymous namespace
@@ -131,7 +140,18 @@ bool RukiaAsmParser::parseInstruction(ParseInstructionInfo &Info,
   // The mnemonic is always the first operand.
   Operands.push_back(RukiaOperand::createToken(Name, NameLoc));
 
-  // TODO: parse register/immediate operands. ecall has none.
+  // Comma-separated register operands, e.g. "x10, x11, x12".
+  // TODO: immediate operands.
+  if (getLexer().isNot(AsmToken::EndOfStatement)) {
+    do {
+      MCRegister Reg;
+      SMLoc S, E;
+      if (!tryParseRegister(Reg, S, E).isSuccess())
+        return Error(getLexer().getLoc(), "expected register");
+      Operands.push_back(RukiaOperand::createReg(Reg, S, E));
+    } while (parseOptionalToken(AsmToken::Comma));
+  }
+
   if (getLexer().isNot(AsmToken::EndOfStatement))
     return Error(getLexer().getLoc(), "unexpected token");
 

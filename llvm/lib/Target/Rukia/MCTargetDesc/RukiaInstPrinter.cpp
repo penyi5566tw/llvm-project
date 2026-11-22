@@ -28,3 +28,10 @@ void RukiaInstPrinter::printInst(const MCInst *MI, uint64_t Address,
 void RukiaInstPrinter::printRegName(raw_ostream &O, MCRegister Reg) {
   O << getRegisterName(Reg, Rukia::ABIRegAltName); // zero, ra, sp, a0, ...
 }
+
+void RukiaInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
+                                    raw_ostream &O) {
+  const MCOperand &MO = MI->getOperand(OpNo);
+  assert(MO.isReg() && "Only register operands so far");
+  printRegName(O, MO.getReg());
+}

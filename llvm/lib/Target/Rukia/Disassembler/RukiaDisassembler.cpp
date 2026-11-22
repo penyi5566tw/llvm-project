@@ -45,6 +45,16 @@ LLVMInitializeRukiaDisassembler() {
                                          createRukiaDisassembler);
 }
 
+// rs1/rs2/rd field -> GPR_X0 ... GPR_X31.
+static DecodeStatus DecodeGPRRegisterClass(MCInst &Inst, uint32_t RegNo,
+                                           uint64_t Address,
+                                           const MCDisassembler *Decoder) {
+  if (RegNo >= 32)
+    return MCDisassembler::Fail;
+  Inst.addOperand(MCOperand::createReg(Rukia::GPR_X0 + RegNo));
+  return MCDisassembler::Success;
+}
+
 // Auto-generated decoder: DecoderTable32 + decodeInstruction().
 #include "RukiaGenDisassemblerTables.inc"
 

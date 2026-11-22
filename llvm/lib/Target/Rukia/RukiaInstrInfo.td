@@ -42,3 +42,28 @@ def ECALL : RukiaInst<(outs), (ins), "ecall", ""> {
   let mayLoad = 0;
   let mayStore = 0;
 }
+
+//===----------------------------------------------------------------------===//
+// Integer arithmetic
+//===----------------------------------------------------------------------===//
+
+// add rd, rs1, rs2: rd = rs1 + rs2. R-type.
+def ADD : RukiaInst<(outs GPR:$rd),
+                    (ins GPR:$rs1, GPR:$rs2),
+                    "add", "$rd, $rs1, $rs2"> {
+  bits<5> rs2;
+  bits<5> rs1;
+  bits<5> rd;
+
+  let Inst{31-25} = 0b0000000; // funct7
+  let Inst{24-20} = rs2;
+  let Inst{19-15} = rs1;
+  let Inst{14-12} = 0b000;     // funct3
+  let Inst{11-7}  = rd;
+  let Inst{6-0}   = 0b0110011; // opcode: OP
+
+  let isCommutable = 1;
+  let hasSideEffects = 0;
+  let mayLoad = 0;
+  let mayStore = 0;
+}
