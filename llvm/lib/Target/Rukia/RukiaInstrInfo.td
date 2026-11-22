@@ -30,16 +30,37 @@ class RukiaInst<dag outs, dag ins, string opcodestr, string argstr>
 // Operands
 //===----------------------------------------------------------------------===//
 
-// Signed 12-bit immediate. The asm parser calls isSImm12() / addImmOperands().
-def SImm12AsmOperand : AsmOperandClass {
-  let Name = "SImm12";
+// N-bit immediate asm operand classes. The asm parser calls isSImm<N>() /
+// isUImm<N>() to match and addImmOperands() to render.
+class SImmAsmOperand<int width> : AsmOperandClass {
+  let Name = "SImm" # width;
   let RenderMethod = "addImmOperands";
+  let PredicateMethod = "isSImm<" # width # ">";
 }
 
-def simm12 : Operand<i32> {
-  let ParserMatchClass = SImm12AsmOperand;
-  let DecoderMethod = "decodeSImmOperand<12>";
+class UImmAsmOperand<int width> : AsmOperandClass {
+  let Name = "UImm" # width;
+  let RenderMethod = "addImmOperands";
+  let PredicateMethod = "isUImm<" # width # ">";
+}
+
+// N-bit signed / unsigned immediate operands.
+class RukiaSImmOp<int width> : Operand<i32> {
+  let ParserMatchClass = SImmAsmOperand<width>;
+  let DecoderMethod = "decodeSImmOperand<" # width # ">";
   let OperandType = "OPERAND_IMMEDIATE";
+}
+
+class RukiaUImmOp<int width> : Operand<i32> {
+  let ParserMatchClass = UImmAsmOperand<width>;
+  let DecoderMethod = "decodeUImmOperand<" # width # ">";
+  let OperandType = "OPERAND_IMMEDIATE";
+}
+
+// simm1 ... simm20, uimm1 ... uimm20.
+foreach i = 1-20 in {
+  def simm # i : RukiaSImmOp<i>;
+  def uimm # i : RukiaUImmOp<i>;
 }
 
 //===----------------------------------------------------------------------===//

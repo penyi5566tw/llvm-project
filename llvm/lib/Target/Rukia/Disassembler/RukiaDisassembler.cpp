@@ -66,6 +66,16 @@ static DecodeStatus decodeSImmOperand(MCInst &Inst, uint32_t Imm,
   return MCDisassembler::Success;
 }
 
+// Zero-extended N-bit immediate field (uimmN).
+template <unsigned N>
+static DecodeStatus decodeUImmOperand(MCInst &Inst, uint32_t Imm,
+                                      int64_t Address,
+                                      const MCDisassembler *Decoder) {
+  assert(isUInt<N>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(Imm));
+  return MCDisassembler::Success;
+}
+
 // Auto-generated decoder: DecoderTable32 + decodeInstruction().
 #include "RukiaGenDisassemblerTables.inc"
 

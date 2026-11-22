@@ -63,8 +63,13 @@ struct RukiaOperand : public MCParsedAsmOperand {
   bool isImm() const override { return Kind == Immediate; }
   bool isMem() const override { return false; }
 
-  // Predicate of SImm12AsmOperand: [-2048, 2047].
-  bool isSImm12() const { return isImm() && isInt<12>(Imm); }
+  // PredicateMethod of SImmAsmOperand<N> / UImmAsmOperand<N>.
+  template <unsigned N> bool isSImm() const {
+    return isImm() && isInt<N>(Imm);
+  }
+  template <unsigned N> bool isUImm() const {
+    return isImm() && isUInt<N>(Imm);
+  }
 
   StringRef getToken() const {
     assert(isToken() && "Invalid access!");
